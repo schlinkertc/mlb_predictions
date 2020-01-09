@@ -1,5 +1,6 @@
 import sqlalchemy
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, Integer, String,DateTime,Date,Time,Boolean
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import relationship
 import config
@@ -7,18 +8,18 @@ import config
 ## Create the base
 Base = declarative_base()
 
-_sql_alchemy_connection = (
-                                f'mysql+mysqlconnector://'
-                                f'{config.user}:{config.password}'
-                                f'@{config.host}:{config.port}'
-                                f'/{config.schema}'
-                           )
+#_sql_alchemy_connection = (
+                                #f'mysql+mysqlconnector://'
+                                #f'{config.user}:{config.password}'
+                                #f'@{config.host}:{config.port}'
+                                #f'/{config.schema}'
+                           #)
 ## Create the engine 
-db = sqlalchemy.create_engine(_sql_alchemy_connection,
-                              echo = False,
-                              connect_args = {'ssl_disabled' : True})
+#db = sqlalchemy.create_engine(_sql_alchemy_connection,
+                              #echo = False,
+                              #connect_args = {'ssl_disabled' : True})
 
-from sqlalchemy import Column, Integer, String,DateTime,Date,Time,Boolean
+
 
 # Declare mapping for the game table 
 class Game(Base):
@@ -109,6 +110,23 @@ class Play(Base):
 
 Game.plays = relationship(
     "Play",order_by=Play.id,back_populates='game')
+
+class Team(Base):
+    __tablename__ = 'teams'
+    __table_args__ = {'extend_existing': True}
+    
+    id = Column(Integer,primary_key=True)
+    name = Column(String(50))
+    venue_id = Column(Integer)
+    teamCode = Column(String(10))
+    abbreviation = Column(String(10))
+    teamName = Column(String(25))
+    locationName = Column(String(25))
+    league_id = Column(Integer)
+    division_id = Column(Integer)
+    
+    def __repr__(self):
+        return "<Team(name='%s')>" % self.name
 
 ###
 # Functions for creating and adding records
@@ -226,3 +244,28 @@ def create_gameRecord_playsRecords(pk,session,commit=True):
     else:
         pass
     #return game_record,play_records
+    
+def create_addTeam(team_ids,session):
+    team_query = session.query(Team).all()
+    already_added = [instance.id for instance in team_query]
+    
+    team_records=[]
+    for team_id in team_ids:
+        if team_id not in already_added:
+            team = mlb.get('team',{'teamId':team_id})['teams'][0]
+
+            team_record = Team(id=team['id'],
+                              name=team['name'],
+                              venue_id=team['venue']['id'],
+                              teamCode=team['teamCode'],
+                              abbreviation=team['abbreviation'],
+                              teamName=team['teamName'],
+                              locationName=team['locationName'],
+                              league_id=team['league']['id'],
+                              division_id=team.get('division',{'id':'null'})['id'])
+
+            team_records.append(team_record)
+        session.add_all(team_records)
+        session.commit()
+    else:
+        print('duplicate')
