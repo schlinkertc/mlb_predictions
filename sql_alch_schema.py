@@ -4,6 +4,7 @@ from sqlalchemy import Column, Integer, String,DateTime,Date,Time,Boolean
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import relationship
 import config
+import statsapi as mlb
 
 ## Create the base
 Base = declarative_base()
@@ -260,12 +261,10 @@ def create_addTeam(team_ids,session):
                               teamCode=team['teamCode'],
                               abbreviation=team['abbreviation'],
                               teamName=team['teamName'],
-                              locationName=team['locationName'],
-                              league_id=team['league']['id'],
+                              locationName=team.get('locationName','null'),
+                              league_id=team.get('league',{'id':'null'})['id'],
                               division_id=team.get('division',{'id':'null'})['id'])
 
             team_records.append(team_record)
         session.add_all(team_records)
         session.commit()
-    else:
-        print('duplicate')
