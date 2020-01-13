@@ -211,7 +211,21 @@ class Person(Base):
     
     def __repr__(self):
         return "<Person(nameSlug='%s')>" % self.nameSlug
+    
+# class GamePersonLink(Base):
+#     __tablename__ = 'games_people_link'
+#     __table_args__ = {'extend_existing': True}
+    
+#     game_id = Column(String(150),ForeignKey('games.id'),primary_key=True)
+#     team_id = Column(Integer,ForeignKey('teams.id'),primary_key=True)
+#     person_id = Column(Integer,ForeignKey('people.id'),primary_key=True)
+    
+#     game = relationship('Game',back_populates='people')
+#     team = relationship('Team',back_populates='people')
+#     person = relationship('Person',back_populates='game')
 
+# Game.people = 
+    
 
 ###################################
 # Adding attributes to classes to make it easier to access info. Could be adjusted later
