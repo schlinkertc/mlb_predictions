@@ -504,4 +504,62 @@ def create_add_GameTeamLink(session,start=0,stop=None,chunk_size=50):
             session.rollback()
             continue 
 
+def create_personRecord(personId):
+    api_call = mlb.get('person',{'personId':personId})
+
+    person = api_call['people'][0]
+    person['birthDate'] = person.get('birthDate','1900-01-01')
+
+    
+    person_record = Person(id=person.get('id','null'),
+                           fullName=person.get('fullName','null'),
+                           firstName=person.get('firstName','null'),
+                           lastName=person.get('lastName','null'),
+                           primaryNumber=person.get('primaryNumber','null'),
+                           birthDate=datetime.strptime(person.get('birthDate','1900-01-01'),'%Y-%m-%d'),
+                           currentAge=person.get('currentAge','null'),
+                           birthCity=person.get('birthCity','null'),
+                           birthCountry=person.get('birthCountry','null'),
+                           height=person.get('height','null'),
+                           weight=person.get('weight','null'),
+                           active=person.get('active','null'),
+                           primaryPosition_code=person.get('primaryPosition',{'code':'null'})['code'],
+                           primaryPosition_name=person.get('primaryPosition',{'name':'null'})['name'],
+                           primaryPosition_type=person.get('primaryPosition',{'type':'null'})['type'],
+                           primaryPosition_abbreviation=person.get('primaryPosition',{'abbreviation':'null'})['abbreviation'],
+                           gender=person.get('gender','null'),
+                           isPlayer=person.get('isPlayer','null'),
+                           isVerified=person.get('isVerified','null'),
+                           draftYear=person.get('draftYear','null'),
+                           mlbDebutDate=datetime.strptime(person.get('mlbDebutDate','1900-01-01'),'%Y-%m-%d'),
+                           batSide=person.get('batSide',{'description':'null'})['description'],
+                           pitchHand=person.get('pitchHand',{'description':'null'})['description'],
+                           nameSlug=person.get('nameSlug','null'),
+                           fullFMLName=person.get('fullFMLName','null'),
+                           strikeZoneTop=person.get('strikeZoneTop','null'),
+                           strikeZoneBottom=person.get('strikeZoneBottom','null'),
+                          )
+    return person_record
+
+def create_addPerson(session,personIds,chunk_size=50):
+    already_added = [item for sublist in session.query(Person.id).all() for item in sublist]
+    records=[]
+    
+    people_to_get = [person for person in personIds if person not in already_added]
+    
+    list_of_chunks = chunk(chunk_size,people_to_get)
+    count=1
+    
+    for _chunk in list_of_chunks:
+        try:
+            print(f'starting chunk {count} out of {len(list_of_chunks)}')
+            records = [create_personRecord(x) for x in _chunk]
+            session.add_all(records)
+            session.commit()
+            count+=1
+        except:
+            print('chunk failed. rolling back session and trying the next chunk')
+            session.rollback()
+            count+=1
+            continue
 
