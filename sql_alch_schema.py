@@ -1,6 +1,6 @@
 import sqlalchemy
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String,DateTime,Date,Time,Boolean
+from sqlalchemy import Column, Integer, String,DateTime,Date,Time,Boolean,Float
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import relationship
 import config
@@ -8,19 +8,6 @@ import statsapi as mlb
 
 ## Create the base
 Base = declarative_base()
-
-#_sql_alchemy_connection = (
-                                #f'mysql+mysqlconnector://'
-                                #f'{config.user}:{config.password}'
-                                #f'@{config.host}:{config.port}'
-                                #f'/{config.schema}'
-                           #)
-## Create the engine 
-#db = sqlalchemy.create_engine(_sql_alchemy_connection,
-                              #echo = False,
-                              #connect_args = {'ssl_disabled' : True})
-
-
 
 # Declare mapping for the game table 
 class Game(Base):
@@ -128,10 +115,131 @@ class Team(Base):
     
     def __repr__(self):
         return "<Team(name='%s')>" % self.name
+    
+##################
+# Create schema for a GameTeamLink that includes up to 40 active players on the roster
+################## 
+class GameTeamLink(Base):
+    __tablename__ = 'game_team_link'
+    __table_args__ = {'extend_existing': True}
+    
+    game_id = Column(String(150),ForeignKey('games.id'),primary_key=True)
+    team_id = Column(Integer,ForeignKey('teams.id'),primary_key=True)
+    
+    # add roster at the time of game 
+    player_1_id = Column(Integer)
+    player_2_id = Column(Integer)
+    player_3_id = Column(Integer)
+    player_4_id = Column(Integer)
+    player_5_id = Column(Integer)
+    player_6_id = Column(Integer)
+    player_7_id = Column(Integer)
+    player_8_id = Column(Integer)
+    player_9_id = Column(Integer)
+    player_10_id = Column(Integer)
+    player_11_id = Column(Integer)
+    player_12_id = Column(Integer)
+    player_13_id = Column(Integer)
+    player_14_id = Column(Integer)
+    player_15_id = Column(Integer)
+    player_16_id = Column(Integer)
+    player_17_id = Column(Integer)
+    player_18_id = Column(Integer)
+    player_19_id = Column(Integer)
+    player_20_id = Column(Integer)
+    player_21_id = Column(Integer)
+    player_22_id = Column(Integer)
+    player_23_id = Column(Integer)
+    player_24_id = Column(Integer)
+    player_25_id = Column(Integer)
+    player_26_id = Column(Integer)
+    player_27_id = Column(Integer)
+    player_28_id = Column(Integer)
+    player_29_id = Column(Integer)
+    player_30_id = Column(Integer)
+    player_31_id = Column(Integer)
+    player_32_id = Column(Integer)
+    player_33_id = Column(Integer)
+    player_34_id = Column(Integer)
+    player_35_id = Column(Integer)
+    player_36_id = Column(Integer)
+    player_37_id = Column(Integer)
+    player_38_id = Column(Integer)
+    player_39_id = Column(Integer)
+    player_40_id = Column(Integer)
+    
+    #relationships
+    game = relationship('Game',back_populates='teams')
+    team = relationship('Team',back_populates='games')
 
-###
+# update game and team tables 
+Game.teams = relationship("GameTeamLink",back_populates='game')
+Team.games = relationship("GameTeamLink",back_populates='team')
+
+# Person table rough
+class Person(Base):
+    __tablename__ = 'people'
+    __table_args__ = {'extend_existing': True}
+    
+    id = Column(Integer, primary_key=True)
+    fullName = Column(String(25))
+    firstName = Column(String(25))
+    lastName = Column(String(25))
+    primaryNumber = Column(Integer)
+    birthDate = Column(DateTime)
+    currentAge = Column(Integer)
+    birthCity = Column(String(25))
+    birthCountry = Column(String(25))
+    height = Column(String(25))
+    weight = Column(Integer)
+    active = Column(Boolean)
+    primaryPosition_code = Column(String(10))
+    primaryPosition_name = Column(String(25))
+    primaryPosition_type = Column(String(25))
+    primaryPosition_abbreviation = Column(String(25))
+    gender = Column(String(5))
+    isPlayer = Column(Boolean)
+    isVerified = Column(Boolean)
+    draftYear = Column(Integer)
+    mlbDebutDate = Column(DateTime)
+    batSide = Column(String(10))
+    pitchHand = Column(String(10))
+    nameSlug = Column(String(30))
+    fullFMLName = Column(String(50))
+    strikeZoneTop = Column(Float)
+    strikeZoneBottom = Column(Float)
+    
+    def __repr__(self):
+        return "<Person(nameSlug='%s')>" % self.nameSlug
+
+
+###################################
+# Adding attributes to classes to make it easier to access info. Could be adjusted later
+###################################
+def players(self):
+    for attr, value in self.__dict__.items():
+        if attr.startswith("player") and value >0:
+            yield value
+GameTeamLink.players = players
+
+def gtl__repr__(self):
+    return "<GameTeam(game_id='%s',team_id='%s')>" % (
+                        self.game_id,self.team_id)
+GameTeamLink.__repr__ = gtl__repr__
+
+# adding a game_players method to the Games table to return a list of active player ids
+def game_players(self):
+    return [x.players() for x in self.teams]
+Game.game_players = game_players
+
+# adding another Game method to see all players in a game
+def all_players(self):
+    return [item for sublist in self.game_players() for item in sublist]
+Game.all_players = all_players
+
+#################################################################
 # Functions for creating and adding records
-###
+#################################################################
 # Create instances of the mapped class for games and plays  
 def create_gameRecord_playsRecords(pk,session,commit=True):
     """
@@ -268,3 +376,132 @@ def create_addTeam(team_ids,session):
             team_records.append(team_record)
         session.add_all(team_records)
         session.commit()
+
+        
+# Series of functions to create and add GameTeamLink records        
+def get_roster_inputs(query):   
+    roster_inputs = []
+    for instance in query.all():
+        roster_input_dict = {'date':datetime.strftime(instance.dateTime,'%Y-%m-%d'),
+                             'season':instance.season,
+                             'homeTeam':instance.homeTeam_id,
+                             'awayTeam':instance.awayTeam_id,
+                             }
+        roster_inputs.append(roster_input_dict)
+        
+    return roster_inputs
+
+def get_roster(roster_input_dict):
+    #player_list = ['player_'+str(x) for x in range(1,41)]
+    home = mlb.get('team_roster',
+                   {'teamId':roster_input_dict['homeTeam'],
+                    'rosterType':'active',
+                    'season':roster_input_dict['season'],
+                    'date':roster_input_dict['date']
+                   })['roster']
+    home_roster_ids = [x['person']['id'] for x in home]
+    player_list = ['player_'+str(x) for x in range(1,len(home_roster_ids)+1)]
+    home_roster_dict = {x:y for x,y in zip(player_list,home_roster_ids)}
+    home_roster_dict['teamId'] = roster_input_dict['homeTeam']
+    
+    away = mlb.get('team_roster',
+                   {'teamId':roster_input_dict['awayTeam'],
+                    'rosterType':'active',
+                    'season':roster_input_dict['season'],
+                    'date':roster_input_dict['date']
+                   })['roster']
+    away_roster_ids = [x['person']['id'] for x in away]
+    player_list = ['player_'+str(x) for x in range(1,len(away_roster_ids)+1)]
+    away_roster_dict = {x:y for x,y in zip(player_list,away_roster_ids)}
+    away_roster_dict['teamId']=roster_input_dict['awayTeam']
+    return home_roster_dict,away_roster_dict
+
+def create_GameTeamLink(game_ids):
+    records = []
+    for game_id in game_ids:
+        game_query = session.query(Game).filter_by(id=game_id)
+        roster_input_dicts = get_roster_inputs(game_query)
+        home_roster,away_roster = get_roster(roster_input_dicts[0])
+        rosters = [home_roster,away_roster]
+#       rosters.append(roster)
+        
+        for roster in rosters:
+            game_team_record = GameTeamLink(game_id=game_id,
+                                            team_id=roster['teamId'],
+
+                                            player_1_id = roster.get('player_1','null'),
+                                            player_2_id = roster.get('player_2','null'),
+                                            player_3_id = roster.get('player_3','null'),
+                                            player_4_id = roster.get('player_4','null'),
+                                            player_5_id = roster.get('player_5','null'),
+                                            player_6_id = roster.get('player_6','null'),
+                                            player_7_id = roster.get('player_7','null'),
+                                            player_8_id = roster.get('player_8','null'),
+                                            player_9_id = roster.get('player_9','null'),
+                                            player_10_id = roster.get('player_10','null'),
+                                            player_11_id = roster.get('player_11','null'),
+                                            player_12_id = roster.get('player_12','null'),
+                                            player_13_id = roster.get('player_13','null'),
+                                            player_14_id = roster.get('player_14','null'),
+                                            player_15_id = roster.get('player_15','null'),
+                                            player_16_id = roster.get('player_16','null'),
+                                            player_17_id = roster.get('player_17','null'),
+                                            player_18_id = roster.get('player_18','null'),
+                                            player_19_id = roster.get('player_19','null'),
+                                            player_20_id = roster.get('player_20','null'),
+                                            player_21_id = roster.get('player_21','null'),
+                                            player_22_id = roster.get('player_22','null'),
+                                            player_23_id = roster.get('player_23','null'),
+                                            player_24_id = roster.get('player_24','null'),
+                                            player_25_id = roster.get('player_25','null'),
+                                            player_26_id = roster.get('player_26','null'),
+                                            player_27_id = roster.get('player_27','null'),
+                                            player_28_id = roster.get('player_28','null'),
+                                            player_29_id = roster.get('player_29','null'),
+                                            player_30_id = roster.get('player_30','null'),
+                                            player_31_id = roster.get('player_31','null'),
+                                            player_32_id = roster.get('player_32','null'),
+                                            player_33_id = roster.get('player_33','null'),
+                                            player_34_id = roster.get('player_34','null'),
+                                            player_35_id = roster.get('player_35','null'),
+                                            player_36_id = roster.get('player_36','null'),
+                                            player_37_id = roster.get('player_37','null'),
+                                            player_38_id = roster.get('player_38','null'),
+                                            player_39_id = roster.get('player_39','null'),
+                                            player_40_id = roster.get('player_40','null')
+                                           )
+            records.append(game_team_record)
+    return records
+
+def chunk(n,list_to_chunk):
+    return [ list_to_chunk[i:i+n] for i in range(0,len(list_to_chunk),n) ]
+
+def create_add_GameTeamLink(session,start=0,stop=None,chunk_size=50):   
+    # collect game_ids from the games table 
+    ids_list_test = session.query(Game.id).all()[start:stop]
+    ids_list_test=[item for sublist in ids_list_test for item in sublist]
+
+    # collect game_ids from the game_link table
+    # I'll naturally have duplicates so I think I'll make it a set 
+    already_added = list({item for sublist in session.query(GameTeamLink.game_id).all() for item in sublist})
+
+    games_to_get = [game for game in ids_list_test if game not in already_added]
+    
+    list_of_chunks = chunk(chunk_size,games_to_get)
+    count = 1
+    
+    for _chunk in list_of_chunks:
+        try:
+            print(f'starting chunk {count} out of {len(list_of_chunks)}')
+            games_teams_to_add = create_GameTeamLink(_chunk)
+
+            session.add_all(games_teams_to_add)
+            session.commit()
+
+            count = count+1
+        except:
+            print('chunk failed. Rolling back the session and trying the next chunk')
+            session.rollback()
+            continue 
+
+
