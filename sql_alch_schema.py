@@ -230,10 +230,10 @@ class Person(Base):
 ###################################
 # Adding attributes to classes to make it easier to access info. Could be adjusted later
 ###################################
-def players(self):
+def players(self,session):
     for attr, value in self.__dict__.items():
         if attr.startswith("player") and value >0:
-            yield value
+            yield session.query(Person).filter(Person.id==value).one()
 GameTeamLink.players = players
 
 def gtl__repr__(self):
