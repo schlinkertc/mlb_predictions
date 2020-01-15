@@ -242,8 +242,9 @@ def gtl__repr__(self):
 GameTeamLink.__repr__ = gtl__repr__
 
 # adding a game_players method to the Games table to return a list of active player ids
-def game_players(self):
-    return [x.players() for x in self.teams]
+def game_players(self,session):
+    home_away = {self.homeTeam_id:'home',self.awayTeam_id:'away'}
+    return {home_away[x.team_id]:x.players(session) for x in self.teams}
 Game.game_players = game_players
 
 # adding another Game method to see all players in a game
@@ -488,6 +489,10 @@ def create_GameTeamLink(game_ids):
     return records
 
 def chunk(n,list_to_chunk):
+    """
+    takes in n, and a list to chunk. returns a list of lists with n length. The last chunk size may or may not 
+    be equal to n. 
+    """
     return [ list_to_chunk[i:i+n] for i in range(0,len(list_to_chunk),n) ]
 
 def create_add_GameTeamLink(session,start=0,stop=None,chunk_size=50):   
@@ -576,4 +581,218 @@ def create_addPerson(session,personIds,chunk_size=50):
             session.rollback()
             count+=1
             continue
+            
+_sql_alchemy_connection = (
+                                f'mysql+mysqlconnector://'
+                                f'{config.user}:{config.password}'
+                                f'@{config.host}:{config.port}'
+                                f'/{config.schema}'
+                           )
+## Create the engine 
+db = sqlalchemy.create_engine(_sql_alchemy_connection,
+                              echo = False,
+                              connect_args = {'ssl_disabled' : True,})
 
+from sqlalchemy import and_
+from sqlalchemy.orm import sessionmaker
+Session = sessionmaker(bind=db)
+#session = Session()
+def relevant_stats(self,game_record,session,limit=None):
+    """
+    Method of the Person class. Takes in a game record 
+    """
+    date=game_record.dateTime
+    probable_starters = [game_record.home_probablePitcher,game_record.away_probablePitcher]
+    stat_line = {}
+    
+    if self.primaryPosition_type in ['Hitter','Outfielder','Infielder','Catcher']:
+        query = session.query(Game,Play).\
+                        filter(Game.id==Play.game_id).\
+                        filter(and_(Game.type=='R',Game.dateTime<date)).\
+                        filter(Play.batter_id==self.id).\
+                        order_by(Game.dateTime.desc()).\
+                        all()[:limit]
+    if self.primaryPosition_type=='Pitcher':
+        query = session.query(Game,Play).\
+                        filter(Game.id==Play.game_id).\
+                        filter(and_(Game.type=='R',Game.dateTime<date)).\
+                        filter(Play.pitcher_id==self.id).\
+                        order_by(Game.dateTime.desc()).\
+                        all()[:limit]
+    games={x[0] for x in query}
+    plays=[x[1] for x in query]
+    
+    singles = [x for x in plays if x.event=='Single']
+    doubles = [x for x in plays if x.event=='Double']
+    triples = [x for x in plays if x.event=='Triple']
+    home_runs = [x for x in plays if x.event=='Home Run']
+    walks = [x for x in plays if x.event=='Walk']
+    strikeouts = [x for x in plays if x.event in ['Strikeout','Strikeout Double Play']]
+    HBP = [x for x in plays if x.event=='Hit By Pitch']
+    GDP = [x for x in plays if x.event=='Grounded Into DP']
+    IBB = [x for x in plays if x.event=='Intent Walk']
+    sac = [x for x in plays if x.event in ['Sac Bunt','Sac Fly']]
+    interference = [x for x in plays if x.event=='Catcher Interference']
+    LO = [x for x in plays if x.event=='Lineout']
+    PO = [x for x in plays if x.event=='Pop Out']
+    FO = [x for x in plays if x.event=='Flyout']
+    GO = [x for x in plays if x.event=='Groundout']
+    
+    ## pitcher stats 
+    #starts
+    #for hitters, this will mean they're the leadoff batter
+    GS = {(x.inning,x.game_id) for x in plays if x.inning==1}
+    #games finished isn't adding up correctly yet. I think it's because walk-offs aren't counted
+    GF = {(x.inning,x.game_id) for x in plays 
+          if x.inning==max([p.inning for p in x.game.plays]) 
+          and x.count_outs==3}        
+    plays_with_outs = [x for x in plays if x.hasOut==True]
+    double_plays = [x for x in plays if x.event=='Grounded Into DP' or 'Double Play' in x.event]
+    triple_plays = [x for x in plays if x.event=='Triple Play']
+    outs = len(plays_with_outs)+len(double_plays)+(len(triple_plays)*2)
+    
+    #winning/losing/tied
+    #how many times does a pitcher enter the game when team is losing/winning
+    
+#     inning_score = [{'game':x.game_id,'atBat':x.atBatIndex,'lead':(x.awayScore-x.homeScore)}
+#                  if x.halfInning=='bottom'
+#                  else 
+#                  {'game':x.game_id,'atBat':x.atBatIndex,'lead':(x.homeScore-x.awayScore)}
+#                  for x in plays 
+#                  if x.inning==min(p.inning for p in x.game.plays if p.pitcher_id==self.id)
+#                  ]
+    
+    
+    stat_line['Position_type']=self.primaryPosition_type
+    stat_line['games']=len(games)
+    stat_line['PA'] = len(plays)
+    stat_line['AB'] = len(plays)-len(walks)-len(HBP)-len(IBB)-len(sac)-len(interference)
+    stat_line['hits']=len(singles)+len(doubles)+len(triples)+len(home_runs)
+    stat_line['singles']=len(singles)
+    stat_line['doubles']=len(doubles)
+    stat_line['triples']=len(triples)
+    stat_line['home_runs']=len(home_runs)
+    stat_line['walks']=len(walks)
+    stat_line['strikeouts']=len(strikeouts)
+    stat_line['HBP']=len(HBP)
+    stat_line['RBIs']=sum([x.rbi for x in plays])
+    stat_line['GDP']=len(GDP)
+    stat_line['IBB']=len(IBB)
+    stat_line['sac']=len(sac)
+    stat_line['LO']=len(LO)
+    stat_line['PO']=len(PO)
+    stat_line['FO']=len(FO)
+    stat_line['GO']=len(GO)
+    
+    stat_line['GS']=len(GS)
+    stat_line['GF']=len(GF)
+        
+    if 'Pitcher' in stat_line['Position_type']:
+        stat_line['IP']=outs/3
+    # is this pitcher generally a starter?    
+    # pitchers who start the game less than 12th of their appearances are labeled relief
+        if stat_line['GS']<stat_line['games']/12:
+            stat_line['Position_type']='Pitcher_relief'
+        else:
+            stat_line['Position_type']='Pitcher_starter'
+    
+    # is this pitcher TODAY's starter?
+    if self.id in probable_starters:
+        stat_line['Position_type']='Probable_startingPitcher'            
+    
+    if 'Pitcher' not in stat_line['Position_type']:
+        stat_line['IP']=0
+    #saves/holds
+    #stats for relief pitchers
+    #stat_line['save_situations']=len([x for x in inning_score])       
+    return stat_line
+
+Person.relevant_stats = relevant_stats
+
+def game_player_stats(self,session,limit=None):
+    home_player_stats = [x.relevant_stats(self,session,limit) for x in self.game_players(session)['home']]
+    away_player_stats = [x.relevant_stats(self,session,limit) for x in self.game_players(session)['away']]
+    
+    home_score = max([x.homeScore for x in self.plays])
+    away_score = max([x.awayScore for x in self.plays])
+    
+    for x in home_player_stats:
+        x['home']=1
+        x['score']=home_score
+    for y in away_player_stats:     
+        y['home']=-1
+        y['score']=away_score
+    
+    player_stats = [home_player_stats, away_player_stats]
+    
+    return [item for sublist in player_stats for item in sublist]
+
+Game.player_stats = game_player_stats
+
+def player_agg_stats(self,session,limit=None):
+    game_dicts=self.player_stats(session,limit)
+    player_dicts=[]
+    for player in game_dicts:
+        if player['games']==0:
+            player['games']=-1
+        player_dict = {'ID':self.id}
+        player_dict['position'] = player['Position_type']
+        player_dict['home'] = player['home']
+        
+        player_dict['PA_per_Game'] = player['PA']/player['games']
+        
+        try:
+            player_dict['BA'] = player['hits']/player['AB']
+        except ZeroDivisionError:
+            player_dict['BA']=0
+            
+        try:
+            player_dict['OBP'] = (
+                                    (player['hits']+player['walks']+player['HBP']+player['IBB'])
+                                    /
+                                    (player['AB']+player['walks']+player['HBP']+player['IBB']+player['sac'])
+                                  )
+        except ZeroDivisionError:
+            player_dict['OBP']=0
+        
+        try:
+            player_dict['SLG'] = (
+                                    ((player['singles']*1)+(player['doubles']*2)+
+                                    (player['triples']*1)+(player['home_runs']*1))
+                                    /
+                                    (player['AB'])
+                                  )
+        except ZeroDivisionError:
+            player_dict['SLG']=0
+            
+        if player['walks']+player['HBP']>0:
+            player_dict['SOW'] = player['strikeouts']/(player['walks']+player['HBP'])
+        else:
+            player_dict['SOW'] = 0
+            
+        if player.get('IP',1)>0:
+            player_dict['H9'] = 9*player['hits']/player['IP']
+            player_dict['HR9'] = 9*player['home_runs']/player['IP']
+            player_dict['SO9'] = 9*player['strikeouts']/player['IP']
+            player_dict['WHIP'] = player['walks']+player['HBP']+player['hits']/player['IP']
+        else:
+            player_dict['H9'] = 0
+            player_dict['HR9'] = 0
+            player_dict['SO9'] = 0
+            player_dict['WHIP'] = 0
+        
+        # proportion of groundouts, flyouts, popouts, lineouts to ABs
+        if player['AB']>0:
+            player_dict['GO_O'] = player['GO']/player['AB']
+            player_dict['FO_O'] = player['FO']/player['AB']
+            player_dict['PO_O'] = player['PO']/player['AB']
+            player_dict['LO_O'] = player['LO']/player['AB']
+        else:
+            player_dict['GO_O'] = 0
+            player_dict['FO_O'] = 0
+            player_dict['PO_O'] = 0
+            player_dict['LO_O'] = 0
+        player_dicts.append(player_dict)
+    return player_dicts
+
+Game.agg_stats = player_agg_stats
