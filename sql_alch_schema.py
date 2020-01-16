@@ -1,10 +1,21 @@
 import sqlalchemy
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String,DateTime,Date,Time,Boolean,Float
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey,and_
 from sqlalchemy.orm import relationship
 import config
 import statsapi as mlb
+
+_sql_alchemy_connection = (
+                                f'mysql+mysqlconnector://'
+                                f'{config.user}:{config.password}'
+                                f'@{config.host}:{config.port}'
+                                f'/{config.schema}'
+                           )
+## Create the engine 
+db = sqlalchemy.create_engine(_sql_alchemy_connection,
+                              echo = False,
+                              connect_args = {'ssl_disabled' : True,})
 
 ## Create the base
 Base = declarative_base()
@@ -212,19 +223,18 @@ class Person(Base):
     def __repr__(self):
         return "<Person(nameSlug='%s')>" % self.nameSlug
     
-# class GamePersonLink(Base):
-#     __tablename__ = 'games_people_link'
-#     __table_args__ = {'extend_existing': True}
+class PersonPlayLink(Base):
+    __tablename__='people_plays'
+    __table_args__={'extend_existing':True}
     
-#     game_id = Column(String(150),ForeignKey('games.id'),primary_key=True)
-#     team_id = Column(Integer,ForeignKey('teams.id'),primary_key=True)
-#     person_id = Column(Integer,ForeignKey('people.id'),primary_key=True)
+    player_id = Column(Integer,ForeignKey('people.id'),primary_key=True)
+    play_id = Column(String(200),ForeignKey('plays.id'),primary_key=True)
     
-#     game = relationship('Game',back_populates='people')
-#     team = relationship('Team',back_populates='people')
-#     person = relationship('Person',back_populates='game')
-
-# Game.people = 
+    player = relationship('Person',back_populates='plays')
+    play = relationship('Play',back_populates='people')
+    
+Person.plays = relationship("PersonPlayLink",order_by=Play.startTime,back_populates='player',lazy='dynamic')
+Play.people = relationship("PersonPlayLink",back_populates='play')
     
 
 ###################################
@@ -326,7 +336,7 @@ def create_gameRecord_playsRecords(pk,session,commit=True):
 
             play_record = Play(id=str(game['pk'])+game['id']+str(about['atBatIndex']),
                               type=result['type'],
-                              event=result['event'],
+                              event=result.get('event','null'),
                               eventType=result.get('eventType','null'),
                               description=result.get('description','null'),
                               rbi=result.get('rbi','null'),
@@ -582,21 +592,7 @@ def create_addPerson(session,personIds,chunk_size=50):
             count+=1
             continue
             
-_sql_alchemy_connection = (
-                                f'mysql+mysqlconnector://'
-                                f'{config.user}:{config.password}'
-                                f'@{config.host}:{config.port}'
-                                f'/{config.schema}'
-                           )
-## Create the engine 
-db = sqlalchemy.create_engine(_sql_alchemy_connection,
-                              echo = False,
-                              connect_args = {'ssl_disabled' : True,})
 
-from sqlalchemy import and_
-from sqlalchemy.orm import sessionmaker
-Session = sessionmaker(bind=db)
-#session = Session()
 def relevant_stats(self,game_record,session,limit=None):
     """
     Method of the Person class. Takes in a game record 
@@ -713,15 +709,15 @@ def game_player_stats(self,session,limit=None):
     home_player_stats = [x.relevant_stats(self,session,limit) for x in self.game_players(session)['home']]
     away_player_stats = [x.relevant_stats(self,session,limit) for x in self.game_players(session)['away']]
     
-    home_score = max([x.homeScore for x in self.plays])
-    away_score = max([x.awayScore for x in self.plays])
+    #home_score = max([x.homeScore for x in self.plays])
+    #away_score = max([x.awayScore for x in self.plays])
     
     for x in home_player_stats:
         x['home']=1
-        x['score']=home_score
+        #x['score']=home_score
     for y in away_player_stats:     
         y['home']=-1
-        y['score']=away_score
+        #y['score']=away_score
     
     player_stats = [home_player_stats, away_player_stats]
     
@@ -769,13 +765,13 @@ def player_agg_stats(self,session,limit=None):
             player_dict['SOW'] = player['strikeouts']/(player['walks']+player['HBP'])
         else:
             player_dict['SOW'] = 0
-            
-        if player.get('IP',1)>0:
+        
+        try:
             player_dict['H9'] = 9*player['hits']/player['IP']
             player_dict['HR9'] = 9*player['home_runs']/player['IP']
             player_dict['SO9'] = 9*player['strikeouts']/player['IP']
             player_dict['WHIP'] = player['walks']+player['HBP']+player['hits']/player['IP']
-        else:
+        except (ZeroDivisionError,KeyError):
             player_dict['H9'] = 0
             player_dict['HR9'] = 0
             player_dict['SO9'] = 0
