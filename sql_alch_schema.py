@@ -223,18 +223,19 @@ class Person(Base):
     def __repr__(self):
         return "<Person(nameSlug='%s')>" % self.nameSlug
     
-# class PersonPlayLink(Base):
-#     __tablename__='people_plays'
-#     __table_args__={'extend_existing':True}
+class PersonPlayLink(Base):
+    __tablename__='people_plays'
+    __table_args__={'extend_existing':True}
     
-#     player_id = Column(Integer,ForeignKey('people.id'),primary_key=True)
-#     play_id = Column(String(200),ForeignKey('plays.id'),primary_key=True)
+    player_id = Column(Integer,ForeignKey('people.id'),primary_key=True)
+    play_id = Column(String(200),ForeignKey('plays.id'),primary_key=True)
     
-#     player = relationship('Person',back_populates='plays')
-#     play = relationship('Play',back_populates='people')
     
-# Person.plays = relationship("PersonPlayLink",order_by=Play.startTime,back_populates='player',lazy='dynamic')
-# Play.people = relationship("PersonPlayLink",back_populates='play')
+    player = relationship('Person',back_populates='plays')
+    play = relationship('Play',back_populates='people')
+    
+Person.plays = relationship("PersonPlayLink",back_populates='player',lazy='dynamic')
+Play.people = relationship("PersonPlayLink",back_populates='play')
     
 
 ###################################
