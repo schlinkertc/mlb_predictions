@@ -215,7 +215,31 @@ def create_addPerson(session,personIds,chunk_size=50):
             session.rollback()
             count+=1
             continue
-            
-
 
 create_addPerson(session,new_people)
+
+from sqlalchemy.sql.expression import insert
+
+def chunk_insertPeoplePlayLink(db,chunk_size=5000):
+    people_plays=db.execute("""select pitcher_id,id from plays;""").fetchall()
+    people_plays={tuple(x.values()) for x in people_plays}
+    
+    print('count down:')
+    print(3)
+    
+    existing=db.execute("""select * from people_plays""").fetchall()
+    existing={tuple(x.values()) for x in existing}
+    
+    print(2)
+    
+    people_plays=list(people_plays-existing)
+    
+    print(1)
+    
+    count=1
+    chunks = sql_alch_schema.chunk(chunk_size,people_plays)
+    for chunk_ in chunks:
+        print(f"chunk {count} of {len(chunks)}")
+        insert_stmt=insert(PersonPlayLink,chunk_)
+        db.execute(insert_stmt)
+        count+=1
