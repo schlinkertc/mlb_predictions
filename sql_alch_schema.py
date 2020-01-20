@@ -245,6 +245,7 @@ def players(self,session):
     for attr, value in self.__dict__.items():
         if attr.startswith("player") and value >0:
             yield session.query(Person).filter(Person.id==value).one()
+
 GameTeamLink.players = players
 
 def gtl__repr__(self):
@@ -259,8 +260,8 @@ def game_players(self,session):
 Game.game_players = game_players
 
 # adding another Game method to see all players in a game
-def all_players(self):
-    return [item for sublist in self.game_players() for item in sublist]
+def all_players(self,session):
+    return [item for sublist in self.game_players(session) for item in sublist]
 Game.all_players = all_players
 
 #################################################################
