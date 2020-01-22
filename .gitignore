@@ -136,3 +136,4 @@ dmypy.json
 *__pycache__
 config.py
 recycling_bin.py
+models
